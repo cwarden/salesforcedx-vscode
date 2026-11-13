@@ -229,6 +229,24 @@ describe('Replay debugger adapter - unit', () => {
       }
     );
 
+    it('Should not include launch arguments or log contents in the launch metric event', async () => {
+      hasLogLinesStub = vi.spyOn(LogContext.prototype, 'hasLogLines').mockReturnValue(true);
+      meetsLogLevelRequirementsStub = vi.spyOn(LogContext.prototype, 'meetsLogLevelRequirements').mockReturnValue(true);
+      scanLogForHeapDumpLinesStub = vi.spyOn(LogContext.prototype, 'scanLogForHeapDumpLines').mockReturnValue(false);
+
+      args.lineBreakpointInfo = lineBpInfo;
+      args.logFileContents = '08:00:00.0|USER_DEBUG|[5]|DEBUG|{"Name":"Acme"}';
+      await adapter.launchRequest(response, args);
+
+      const launchMetric = sendEventSpy.mock.calls
+        .map(([event]) => event)
+        .find(event => event.body?.type === 'launchApexReplayDebugger');
+      expect(launchMetric?.body).toEqual({ subject: 'launchRequest', type: 'launchApexReplayDebugger' });
+      expect(JSON.stringify(sendEventSpy.mock.calls.filter(([event]) => event.event !== 'output'))).not.toContain(
+        'Acme'
+      );
+    });
+
     it('Should not apply heap dump results if no heap dumps are found in the logs', async () => {
       hasLogLinesStub = vi.spyOn(LogContext.prototype, 'hasLogLines').mockReturnValue(true);
       meetsLogLevelRequirementsStub = vi.spyOn(LogContext.prototype, 'meetsLogLevelRequirements').mockReturnValue(true);

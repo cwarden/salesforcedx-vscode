@@ -169,6 +169,28 @@ describe('redactSensitiveData', () => {
       );
     });
 
+    it('redacts the domain and the last 256 characters of an over-long local part', () => {
+      expect(redactSensitiveData(`${'a'.repeat(300)}@example.com`)).toBe(
+        `${'a'.repeat(44)}<REDACTED USERNAME OR EMAIL>`
+      );
+    });
+
+    describe('large values without an email finish in linear time', () => {
+      // Unbounded local-part matching took about 16 seconds on the first payload.
+      const sObjectLine = (i: number): string =>
+        `08:00:00.${i}|VARIABLE_ASSIGNMENT|[${i}]|acct|{"Name":"Acme ${i}","Industry":"Energy","OwnerId":"005000000000001AAA"}|0x${i}\n`;
+      const debugLog = `${Array.from({ length: 4000 }, (_, i) => sObjectLine(i)).join('')}USER_DEBUG|[5]|DEBUG|done!`;
+
+      it.each([
+        ['a JSON-stringified debug log with many escaped quotes', JSON.stringify({ logFileContents: debugLog })],
+        ['one long run of local-part characters', `${'a'.repeat(500_000)} done!`]
+      ])('%s', (_name, value) => {
+        const start = performance.now();
+        expect(redactSensitiveData(value)).toBe(value);
+        expect(performance.now() - start).toBeLessThan(5000);
+      });
+    });
+
     it.each(['ps -e -o pid,ppid,command', 'git log -o output.txt'])(
       'does not treat non-sf -o as target-org: %s',
       value => {

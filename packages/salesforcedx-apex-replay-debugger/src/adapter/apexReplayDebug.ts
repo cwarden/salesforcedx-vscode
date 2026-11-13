@@ -98,9 +98,10 @@ export class ApexReplayDebug extends LoggingDebugSession {
     response.success = false;
     this.setupLogger(args);
     this.log(TRACE_CATEGORY_LAUNCH, `launchRequest: args=${JSON.stringify(args)}`);
+    // The metric subject becomes a telemetry span attribute, so it must not carry args: they hold the whole debug log.
     this.sendEvent(
       new Event(SEND_METRIC_GENERAL_EVENT, {
-        subject: `launchRequest: args=${JSON.stringify(args)}`,
+        subject: 'launchRequest',
         type: 'launchApexReplayDebugger'
       })
     );

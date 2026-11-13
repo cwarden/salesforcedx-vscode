@@ -12,6 +12,12 @@ import { isNotUndefined, isRecord } from 'effect/Predicate';
 // #region General recognizable-value redaction
 
 /**
+ * Longest local part matched as a whole. Email local parts are at most 64 characters and Salesforce
+ * usernames at most 80 in total; a longer local part has only its last 256 characters redacted.
+ */
+const MAX_LOCAL_PART_LENGTH = 256;
+
+/**
  * Ordered [label, group name, regex source] triples. Order matters: the combined alternation is
  * left-biased at each match position. The label is looked up by named group, so a capturing group
  * added inside a source cannot shift the labels.
@@ -43,10 +49,13 @@ const VALUE_PATTERNS: readonly (readonly [label: string, group: string, source: 
   // key-shaped: covers `refresh_token=x`, `"refresh_token":"x"`, and `refreshToken: x`
   ['<REDACTED REFRESH TOKEN>', 'refreshToken', String.raw`refresh_?[Tt]oken["']?\s*[:=]\s*["']?[^\s'"&,;}]+`],
   // Treat unquoted `=` as telemetry's key/value delimiter; quoted local parts may still contain it.
+  // Both local-part forms are length-bounded. Unbounded, a failed attempt scans from its start position
+  // to the end of the run, so a large value with many `\"` escapes (a JSON-stringified debug log) or one
+  // long run of local-part characters takes time quadratic in its length, on the extension host thread.
   [
     '<REDACTED USERNAME OR EMAIL>',
     'usernameOrEmail',
-    String.raw`(?:"(?:[^"\\\r\n]|\\.)+"|[\p{L}\p{M}\p{N}!#$%&'*+/?^_\x60{|}~.-]+)@[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}-]{0,61}[\p{L}\p{N}])?)+`
+    String.raw`(?:"(?:[^"\\\r\n]|\\.){1,${MAX_LOCAL_PART_LENGTH}}"|[\p{L}\p{M}\p{N}!#$%&'*+/?^_\x60{|}~.-]{1,${MAX_LOCAL_PART_LENGTH}})@[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}-]{0,61}[\p{L}\p{N}])?)+`
   ]
 ];
 
